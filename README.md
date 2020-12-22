@@ -15,3 +15,8 @@ Persons Of Interest has a GUI version(Graphical User Interface) and A command li
 # Usage
 
 The creator of this system  is not responsible for any illegal usage of this system please use it responsibly!!
+
+
+# Inspiration
+
+This system was inspired by the tv show Persons of interest!
