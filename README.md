@@ -20,3 +20,8 @@ The creator of this system  is not responsible for any illegal usage of this sys
 # Inspiration
 
 This system was inspired by the tv show Persons of interest!
+
+
+# OPEN FOR CONTRIBUTION
+
+Anyone can contribute to this program!
