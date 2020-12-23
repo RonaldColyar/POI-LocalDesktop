@@ -8,11 +8,12 @@ this version should only be used to build profiles on
 your local machine , for remote use check the 'CommandClientRemote' client
 """
 class MongoHandler:
-		def __init__(self):
+	def __init__(self):
 		self.client = pymongo.MongoClient("mongodb://localhost:27017/")
-		self.db = client['persons']
+		self.db = self.client['persons']
 		self.collection = self.db["profiles"]
-	def create_profile(data,client):
+
+	def create_profile(self,data,client):
 		del data["type"]
 		result = self.collection.insert_one(data)
 		status = result.acknowledged 
@@ -21,12 +22,22 @@ class MongoHandler:
 		else:
 			client.send("error".encode("ascii"))
 
+	def send_profile_data(self,data,client):
+		del data["type"] # we only need the first/last name for query
+		profile = self.collection.find_one(data,{"_id" :0 })
+		if profile == None:
+			client.send("error".encode("ascii"))
+		else:
+			formatted_profile = json.dumps(profile) #convert to string
+			data_size = len(formatted_profile.encode("ascii"))
+			client.send("PROFILE_FOUND".encode("ascii"))
+			client.send(str(data_size).encode("ascii")) #send size of the data for clean data transfer
+			response = client.recv(70).decode("ascii")
+			if response == "GOT":
+				client.send(formatted_profile.encode("ascii"))
+				print(formatted_profile)
+				print(data_size)
 
-				
-			
-		client.send("ACCEPTED_CREATION".encode("ascii"))
-	def send_profile_data(data,client):
-		pass #send client profile data size and then the data
 
 class Server :
 	def __init__(self):
@@ -43,19 +54,26 @@ class Server :
 			elif data["type"] == "PROFILE_REQUEST":
 				self.mongo_handler.send_profile_data(data,client)
 				
-		except:
-			print("")
+		except Exception as e:
+			print("issue")
+			print(e)
 
 		
 	def client_thread(self,client , addr ):
 		thread_running = True
 		while thread_running == True :
-			data_size = int(client.recv(100).decode("ascii"))
+			data_size = int(str(client.recv(100).decode("ascii")))
 			data = client.recv(data_size).decode("ascii")
 			new_dict = json.loads(data)
-			self.route_type(new_dict,client,thread_running,addr)
 
-	def start_server():
+			if new_dict["type"] == "DICONNECT_":
+				thread_running = False
+			else:
+				self.route_type(new_dict,client,thread_running,addr)
+
+	def start_server(self):
+		self.server.bind((self.host,self.port))
+		self.server.listen()
 		while self.running == True:
 			client , addr = self.server.accept()
 			#start new thread to avoid blocking new connections!
@@ -63,6 +81,8 @@ class Server :
 			thread.start()
 
 
+server = Server()
+server.start_server()
 
 			
 
