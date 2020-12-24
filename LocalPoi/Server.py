@@ -63,8 +63,8 @@ class MongoHandler:
         path ="entries."+data["label"] #creating a child structure 
         new_value = {"$set" :{path : data["data"]}} #setting new value(must be unique)
 
-        status = self.collection.update_one(query ,new_value  )
-        self.send_crud_status(client,"ENTRY_ACCEPTED")
+        status = self.collection.update_one(query ,new_value  ).acknowledged
+        self.send_crud_status(client,"ENTRY_ACCEPTED",status)
         
 
 
@@ -88,6 +88,8 @@ class Server :
                 self.mongo_handler.edit_profile_data(data,client)
             elif data["type"] == "REQUEST_DELETION":
                 self.mongo_handler.delete_profile(data,client)
+            elif data["type"] == "ENTRY_REQUEST":
+                self.mongo_handler.add_entry(data,client)
 
                 
         except Exception as e:
