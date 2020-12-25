@@ -4,9 +4,11 @@ import base64
 import json
 import tkinter
 import atexit
+from functools import partial
 from termcolor import colored
 from colorama import init
-from tkinter import filedialog 
+from tkinter.filedialog import askopenfilename
+
 
 
 
@@ -15,49 +17,54 @@ from tkinter import filedialog
 init()#allow colored text to run on windows machines
 
 class ResultWindow:
-    
-    def __init__(self,master,first,last,location,reason,race,image):
-
-        if image == "NOT_PRESENT":
-            self.formatted_image = tkinter.PhotoImage(file = 'defaultimage.png') #anonymous photo
-
+    def image_check(self,data):
+        if data["image"] == "NOT_PRESENT":
+            self.formatted_image = tkinter.PhotoImage(file = 'defaultimage.png') 
+            #only display race if there is no photo of subject
+            race = tkinter.Label(self.master,text ="Race/Skin Color:"+ data["race"],
+                 bg = "#222", fg = "#fff",font=("Courier", 20),relief = "ridge").pack()
         else:
-            self.formatted_image = tkinter.PhotoImage(master = master,data = image)
+            self.formatted_image = tkinter.PhotoImage(master = self.master,data = data["image"])
+            
 
-        formatted_first = "First Name: " + first
-        formatted_last = "Last Name: " + last
-        formatted_location = "Location: " + location
-        formatted_reason = "Why?:" + reason
-        formatted_race = "Race/Skin Tone:" + race
+    
+    def __init__(self,master,data):
+        self.master = master
+        self.image_check(data)
         #widgets
         master.config(bg = "#222")
-        picture = tkinter.Label(master , image = self.formatted_image,bg = "#222" , fg = "#fff" ).pack()
-        first_name = tkinter.Label(master,text = formatted_first,bg = "#222", fg = "#fff",font=("Courier", 20)).pack()
-        last_name = tkinter.Label(master,text = formatted_last,bg = "#222", fg = "#fff",font=("Courier", 20)).pack()
-        race = tkinter.Label(master,text = formatted_race,bg = "#222", fg = "#fff",font=("Courier", 20)).pack()
-        known_location = tkinter.Label(master, text = formatted_location,bg = "#222", fg = "#fff",font=("Courier", 15)).pack()
-        reason_why = tkinter.Message(master,text= formatted_reason,bg = "#222", fg = "#fff",font=("Courier", 10)).pack()
+        picture = tkinter.Label(master , image = self.formatted_image ,bg = "#222" , fg = "#fff" ).pack()
+        first_name = tkinter.Label(master,text ="First:"+ data["firstname"],
+            bg = "#222", fg = "#fff",font=("Courier", 20),relief = "ridge").pack()
+        last_name = tkinter.Label(master,text = "Last:"+ data["lastname"],
+            bg = "#222", fg = "#fff",font=("Courier", 20),relief = "ridge").pack()
+        known_location = tkinter.Label(master, text ="Location:"+ data["location"],
+            bg = "#222", fg = "#fff",font=("Courier", 15),relief = "ridge").pack()
+        reason_why = tkinter.Message(master,text="Reason For Profile:" +data["reason"],
+            bg = "#222", fg = "#fff",font=("Courier", 10),relief = "ridge").pack()
+        self.insert_entries(data)
+
+    def insert_entries(self,data):
+        #create a button for all entries
+        if "entries" in data:
+            tkinter.Label(self.master,text="Entries:",
+            bg = "#222", fg = "green",font=("Courier", 30),relief = "ridge").pack()
+            for key in data["entries"]: 
+               tkinter.Button(self.master ,text = key , 
+                command = partial(self.display_entry_data,data["entries"][key],key),
+                borderwidth = 0.5,
+                fg = "#fff" ,
+                bg = "#555" ,
+                width = 40).pack()
+
+    def display_entry_data(self,data,label) :
+        child = tkinter.Toplevel()
+        child.config(bg = "#222")
+        tkinter.Label(child,text = label+":" , font=("Courier", 30) , fg = "#d3d3d3",bg = "#222" ).pack()
+        tkinter.Message(child,text = data , font=("Courier", 20), fg = "#d3d3d3",bg = "#222").pack()
+        child.mainloop()
 
 
-    def display_tree(self,data):
-        pass
-    def gather_tree_entries(self,username):
-        request = {
-            "type":"tree_data",
-            "name":username
-                }
-        formatted_request  = json.dump(request)
-        send_size = len(formatted_request.encode("ascii"))
-        self.client.send(send_size)
-        self.client.send(formatted_request)
-        incoming_size = int(self.client.recv(100).decode("ascii"))
-        if incoming_size == 0:
-            pass#dont exist
-        else:
-            data = self.client.recv(incoming_size).decode("ascii")
-            self.display_tree(data)
-
-            
         
         
         
@@ -114,8 +121,7 @@ class Client:
 
         new_dict = json.loads(response)
         master = tkinter.Tk()
-        result_window = ResultWindow(master,new_dict["firstname"],new_dict["lastname"],
-                                     new_dict["location"],new_dict["reason"],new_dict["race"],new_dict["image"])
+        result_window = ResultWindow(master,new_dict)
         master.mainloop()
 
 
@@ -141,15 +147,15 @@ class Client:
                 "Profile Successfully Created!! ,View it with the command(view)")
         elif request == "profile_view":
             self.check_profile_exist_reponse(response)
-            
         elif request == "profile_deletion":
             self.check_status_response(response,"DELETION_ACCEPTED",colored("Profile Successfully Removed!!" , "red"))
         elif request == "entry_request" :
             self.check_status_response(response,"ENTRY_ACCEPTED" ,
              colored("Entry Successfully Added!! View it with the command(view)" , "green"))
+        elif request == "entry_deletion":
+            self.check_status_response(response,"ENTRY_DELETED" ,
+             colored("Entry Successfully Deleted!! View the profile with the command(view)" , "green"))
 
-
-                
 
 
     def send_request(self,data,message_type):
@@ -161,10 +167,15 @@ class Client:
         self.check_response(message_type,response)
 
     def select_image(self):
-        profile_path = filedialog.askopenfilename( initialdir= "/",title='Persons Image' , filetypes = [("PNG FILES" , "*.png")])
-        with open(profile_path, "rb") as file:
-            encoded_image = base64.b64encode(file.read()).decode("ascii")
-        return encoded_image
+        tkinter.Tk().withdraw()#avoid auto root level window
+        profile_path = askopenfilename( initialdir= "/",title='Persons Image' , filetypes = [("PNG FILES" , "*.png")])
+      
+        if profile_path == "":
+            return "NOT_PRESENT"
+        else:
+            with open(profile_path, "rb") as file:
+                encoded_image = base64.b64encode(file.read()).decode("ascii")
+            return encoded_image
 
     def view_profile(self):
         first_name = input("First Name:")
@@ -190,6 +201,7 @@ class Client:
         self.client.send(data.encode("ascii"))
         response = self.client.recv(100).decode("ascii")
         self.check_edit_response(response)
+
 
     def edit_profile(self):
         first = input("First Name:")
@@ -234,6 +246,8 @@ class Client:
             + " view-Allows you to view a profile in a gui")
         print(colored("[4]","green") 
             + " edit-Allows you to edit a profile's attribute or add a new attribute!")
+        print(colored("[5]","green") 
+            + " entry-Allows you to make a information entry on a profile")
         
     def add_entry(self):
         first = input("First Name:")
@@ -248,6 +262,17 @@ class Client:
             "data" : data
         }
         self.send_request(entry_data , "entry_request")
+    def delete_entry(self):
+        first = input("First Name:")
+        last =  input("Last Name:")
+        label = input("Name Of Entry(the command to check all entry names is [view]):")
+        entry_data={
+            "type":"DELETE_ENTRY",
+            "firstname":first,
+            "lastname" :last,
+            "label" : label
+        }
+        self.send_request(entry_data,"entry_deletion")
 
 
     def command_check(self,command):
@@ -259,8 +284,10 @@ class Client:
             self.edit_profile()
         elif command == "delete" or command == "2":
             self.delete_profile()
-        elif command == "entry":
+        elif command == "entry" or command == "5":
             self.add_entry()
+        elif command == "delete entry":
+            self.delete_entry()
         elif command == "--help" or command == "help":
             self.help()
         else:
@@ -281,10 +308,11 @@ class Client:
                 self.command_check(command)
 
 
-client = Client()
-client.Start()
-        
-        
+if __name__ == '__main__':
+    client = Client()
+    client.Start()
+            
+            
 
 
         

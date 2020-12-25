@@ -12,6 +12,10 @@ class MongoHandler:
         self.client = pymongo.MongoClient("mongodb://localhost:27017/")
         self.db = self.client['persons']
         self.collection = self.db["profiles"]
+    def profile_query(self,data):
+        query = {"firstname" : data["firstname"],
+                 "lastname" : data["lastname"]}
+        return query
 
     def send_crud_status(self,client,message,status):
         if status == True :#if the crud operation was successful
@@ -42,11 +46,9 @@ class MongoHandler:
                 client.send(formatted_profile.encode("ascii"))
 
     def edit_profile_data(self,data,client):
-        query = {"firstname" : data["firstname"],
-                 "lastname" : data["lastname"]}
-
+       
         new_value = {"$set" :{data["field"] : data["value"]}}
-        status = self.collection.update_one(query,new_value).acknowledged
+        status = self.collection.update_one(self.profile_query(data),new_value).acknowledged
         self.send_crud_status(client,"SUCCESSFUL_EDIT",status)
 
     def delete_profile(self,data,client):
@@ -54,17 +56,12 @@ class MongoHandler:
         status = self.collection.delete_one(data).acknowledged
         self.send_crud_status(client,"DELETION_ACCEPTED",status)
 
-    def add_entry(self,data,client):
-        query = {
-            "firstname" : data["firstname"],
-            "lastname" : data["lastname"]
-        }
-
+    def modify_entry(self,data,client,message,set_type,value):
         path ="entries."+data["label"] #creating a child structure 
-        new_value = {"$set" :{path : data["data"]}} #setting new value(must be unique)
+        new_value = {set_type :{path : value}} #setting new value(must be unique)
+        status = self.collection.update_one(self.profile_query(data) ,new_value  ).acknowledged
+        self.send_crud_status(client, message,status)
 
-        status = self.collection.update_one(query ,new_value  ).acknowledged
-        self.send_crud_status(client,"ENTRY_ACCEPTED",status)
         
 
 
@@ -78,7 +75,7 @@ class Server :
         self.running = True
         self.mongo_handler = MongoHandler()
         
-    def route_type(self, data,client,thread_running,addr):
+    def route_type(self, data,client,addr):
         try:
             if data["type"] == "PROFILE_CREATION" :
                 self.mongo_handler.create_profile(data,client)
@@ -89,7 +86,9 @@ class Server :
             elif data["type"] == "REQUEST_DELETION":
                 self.mongo_handler.delete_profile(data,client)
             elif data["type"] == "ENTRY_REQUEST":
-                self.mongo_handler.add_entry(data,client)
+                self.mongo_handler.modify_entry(data,client,"ENTRY_ACCEPTED","$set",data["data"])
+            elif data["type"] == "DELETE_ENTRY":
+                self.mongo_handler.modify_entry(data,client,"ENTRY_DELETED","$unset", "")
 
                 
         except Exception as e:
@@ -100,14 +99,14 @@ class Server :
     def client_thread(self,client , addr ):
         thread_running = True
         while thread_running == True :
-            data_size = int(str(client.recv(100).decode("ascii")))
+            data_size = int(str(client.recv(100).decode("ascii"))) 
             data = client.recv(data_size).decode("ascii")
             new_dict = json.loads(data)
 
             if new_dict["type"] == "DICONNECT_":
                 thread_running = False
             else:
-                self.route_type(new_dict,client,thread_running,addr)
+                self.route_type(new_dict,client,addr)
 
     def start_server(self):
         self.server.bind((self.host,self.port))
