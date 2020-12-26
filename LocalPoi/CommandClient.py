@@ -214,6 +214,13 @@ class Client:
         elif request == "email_recipient_add":
             self.check_status_response(response,"EMAIL_RECIPIENT_ADDED",
                colored("Recipient Added!" , "green")  )
+        elif request ==  "email_recipient_remove":
+            self.check_status_response(response,"EMAIL_RECIPIENT_REMOVED",
+               colored("Recipient Removed!" , "green")  )
+        elif request == "breached":
+            self.check_status_response(response,"BREACH_PROTOCOL_SUCCESSFUL",
+               colored("Breach Protocol Complete!! Check the success with (VIEW ALL)" , "green")  )
+
 
 
 
@@ -303,6 +310,26 @@ class Client:
         }
         self.send_request(entry_data,"entry_deletion")
 
+    #BREACH SECTION
+    def breach_protocol(self):
+        confirmation = input("Are you sure you would like to delete all data?[y/n]:")
+        if confirmation == "y" or confirmation == "Y":
+            confirmation2 = input("Are you very very sure? this process can not be reversed!![y/n]")
+            if confirmation2 == "y" or confirmation2 == "Y":
+                security_code = input("What is the security code??")
+            else:
+                print("Breach Aborted!!")
+        else:
+            print("Breach Aborted!!")
+    def send_breach_request(self,code):
+        breach_data = {
+            "type": "BREACHED",
+            "code": code
+        }
+        self.send_request(breach_data , "breached")
+        
+
+
 
     #EMAIL SECTION
     def configure_email(self):
@@ -345,6 +372,12 @@ class Client:
             self.add_entry()
         elif command == "delete entry":
             self.delete_entry()
+        elif command == "configure email":
+            self.configure_email()
+        elif command == "add recipient":
+            self.add_email_recipient()
+        elif command == "remove recipient":
+            self.remove_email_recipient()
         elif command == "--help" or command == "help":
             self.help()
         else:
