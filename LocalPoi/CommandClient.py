@@ -1,9 +1,12 @@
 
 import socket
+import os
 import base64
 import json
 import tkinter
 import atexit
+import pymsgbox
+from tkinter import ttk
 from functools import partial
 from termcolor import colored
 from colorama import init
@@ -25,15 +28,48 @@ class ResultWindow:
                  bg = "#222", fg = "#fff",font=("Courier", 20),relief = "ridge").pack()
         else:
             self.formatted_image = tkinter.PhotoImage(master = self.master,data = data["image"])
+
+    def create_files(self,dir_name):
+        try:
+            os.mkdir(dir_name)
+            with open(dir_name+"/profilepic.png" , "wb") as file:
+                file.write(base64.b64decode(self.data["image"]))
+            with open(dir_name+"/profiledata.txt" , "w") as file:
+                #write all data that isn't the image
+                for key in self.data:
+                    if key != "image":
+                        file.write(key+":"+self.data[key])
+                        file.write("\n")
+
+        except :
+            pymsgbox.alert(
+                text = "directory already exist",
+                title = "Issue.." ,
+                button = "Ok")
             
+        
+
+    def download_profile(self):
+        download_window = tkinter.Toplevel()
+        heading = tkinter.Label(download_window, 
+            text = "Name Of New Directory(for profile content) make sure the directory do not exist!").pack()
+        data_input = ttk.Entry(heading)
+        data_input.pack()
+        download_button = tkinter.Button(download_window, text = "Download" ,
+                 command = lambda: self.create_files(data_input))
+
+
 
     
     def __init__(self,master,data):
         self.master = master
         self.image_check(data)
+        self.data = data
         #widgets
         master.config(bg = "#222")
-        picture = tkinter.Label(master , image = self.formatted_image ,bg = "#222" , fg = "#fff" ).pack()
+        picture = tkinter.Label(master , image = self.formatted_image ,bg = "#222" ).pack()
+        download_button = tkinter.Label(master , text = "Download Entry" ,
+            bg = "#666", fg = "#fff" ,borderwidth = 0.5 , command = self.download_profile())
         first_name = tkinter.Label(master,text ="First:"+ data["firstname"],
             bg = "#222", fg = "#fff",font=("Courier", 20),relief = "ridge").pack()
         last_name = tkinter.Label(master,text = "Last:"+ data["lastname"],
@@ -89,17 +125,7 @@ class Client:
             print("Enter to Exit!")
 
 
-    def display_welcome_message(self):
-            path = 'C:/Users/ronald/Git/Git Repos/POI/AsciiArt/Builder.txt'
-            with open( path, "r") as file: #ascii art
-                for i in file.readlines():
-                    print(i)
-            print(colored("#Welcome To Persons Of Interest!!" , "green"))
-            print("-----------------------------------------------------")
-            print(colored("#Build Profiles On Suspicious Characters!","red"))
-            print(colored("--help for command listings" , "red"))
-
-
+    #profiles
     def create_profile(self):
             firstname = input("First Name:")
             lastname = input("Last Name:")
@@ -116,6 +142,20 @@ class Client:
             else:
                 profile_data["image"] = "NOT_PRESENT"
                 self.send_request(profile_data,"profile_creation")
+    def delete_profile(self):
+        first = input("First Name:")
+        last = input("Last Name:")
+        confirmation = input("Are you sure?[y/n]")
+        if confirmation == "y" or confirmation == "Y":
+            delete_data = {
+              "type" : "REQUEST_DELETION",
+              "firstname" : first,
+              "lastname" : last,
+            }
+            self.send_request(delete_data,"profile_deletion" )
+        else:
+            print(colored("Aborted Deletion!"))
+
 
     def display_profile(self,response):
 
@@ -134,6 +174,19 @@ class Client:
         else:
             print("Profile Doesn't exist!")
 
+
+    def view_profile(self):
+        first_name = input("First Name:")
+        last_name = input("Last Name:")
+        profile_data = {
+            "type" : "PROFILE_REQUEST",
+            "firstname":first_name,
+            "lastname" :last_name
+        }
+        self.send_request(profile_data,"profile_view")
+
+
+    # Request routing
     def check_status_response(self,response ,server_accept_message,success_message):
         if response == server_accept_message:
                 print(success_message)
@@ -155,6 +208,13 @@ class Client:
         elif request == "entry_deletion":
             self.check_status_response(response,"ENTRY_DELETED" ,
              colored("Entry Successfully Deleted!! View the profile with the command(view)" , "green"))
+        elif request == "email_config":
+             self.check_status_response(response,"CONFIG_COMPLETE" ,
+             colored("Email Configuration Complete! You can now broadcast your data to your target audience!" , "green"))
+        elif request == "email_recipient_add":
+            self.check_status_response(response,"EMAIL_RECIPIENT_ADDED",
+               colored("Recipient Added!" , "green")  )
+
 
 
 
@@ -166,27 +226,9 @@ class Client:
         response = self.client.recv(70).decode("ascii")
         self.check_response(message_type,response)
 
-    def select_image(self):
-        tkinter.Tk().withdraw()#avoid auto root level window
-        profile_path = askopenfilename( initialdir= "/",title='Persons Image' , filetypes = [("PNG FILES" , "*.png")])
-      
-        if profile_path == "":
-            return "NOT_PRESENT"
-        else:
-            with open(profile_path, "rb") as file:
-                encoded_image = base64.b64encode(file.read()).decode("ascii")
-            return encoded_image
 
-    def view_profile(self):
-        first_name = input("First Name:")
-        last_name = input("Last Name:")
-        profile_data = {
-            "type" : "PROFILE_REQUEST",
-            "firstname":first_name,
-            "lastname" :last_name
-        }
-        self.send_request(profile_data,"profile_view")
 
+    #EDIT SECTION
     def check_edit_response(self,response):
         if response == "SUCCESSFUL_EDIT":
             print("You Have Successfully Edited The Profile!")
@@ -222,19 +264,6 @@ class Client:
         self.send_edit_request(edit_data)
 
 
-    def delete_profile(self):
-        first = input("First Name:")
-        last = input("Last Name:")
-        confirmation = input("Are you sure?[y/n]")
-        if confirmation == "y" or confirmation == "Y":
-            delete_data = {
-              "type" : "REQUEST_DELETION",
-              "firstname" : first,
-              "lastname" : last,
-            }
-            self.send_request(delete_data,"profile_deletion" )
-        else:
-            print(colored("Aborted Deletion!"))
 
 
     def help(self):
@@ -248,7 +277,7 @@ class Client:
             + " edit-Allows you to edit a profile's attribute or add a new attribute!")
         print(colored("[5]","green") 
             + " entry-Allows you to make a information entry on a profile")
-        
+    #ENTRIES SECTION
     def add_entry(self):
         first = input("First Name:")
         last = input("Last Name:")
@@ -275,6 +304,34 @@ class Client:
         self.send_request(entry_data,"entry_deletion")
 
 
+    #EMAIL SECTION
+    def configure_email(self):
+        email = input("Email Address:")
+        password = input(f"Password for {email}:")
+        email_data = {
+            "type" : "EMAIL_CONFIG",
+            "email" : email,
+            "password" :password
+        }
+        self.send_request(email_data , "email_config")
+    def add_email_recipient(self):
+        new_email  = input("New Person Email:")
+        email_nickname = input("New Person Nick Name:")
+        email_data = {
+            "type": "EMAIL_RECIPIENT_ADD",
+            "email": new_email,
+            "email_name" : email_nickname
+        }
+        self.send_request(email_data,"email_recipient_add")
+    def remove_email_recipient(self):
+        email_nickname = input("Nick Name you would like to remove:")
+        remove_data = {
+                "type":"REMOVE_EMAIL_RECIPIENT",
+                "nickname": email_nickname
+        }
+        self.send_request(remove_data,"email_recipient_remove")
+
+    #GENERAL PURPOSE SECTION
     def command_check(self,command):
         if  command == "create" or command == "1":
             self.create_profile()
@@ -293,11 +350,27 @@ class Client:
         else:
             print("unknow command")
 
+    def display_welcome_message(self):
+            path = 'C:/Users/ronald/Git/Git Repos/POI/AsciiArt/Builder.txt'
+            with open( path, "r") as file: #ascii art
+                for i in file.readlines():
+                    print(i)
+            print(colored("#Welcome To Persons Of Interest!!" , "green"))
+            print("-----------------------------------------------------")
+            print(colored("#Build Profiles On Suspicious Characters!","red"))
+            print(colored("--help for command listings" , "red"))
 
+    def select_image(self):
+        tkinter.Tk().withdraw()#avoid auto root level window
+        profile_path = askopenfilename( initialdir= "/",title='Persons Image' , filetypes = [("PNG FILES" , "*.png")])
+      
+        if profile_path == "":
+            return "NOT_PRESENT"
+        else:
+            with open(profile_path, "rb") as file:
+                encoded_image = base64.b64encode(file.read()).decode("ascii")
+            return encoded_image
 
-
-        
-        
     def Start(self):
         self.display_welcome_message()
         while self.running == True:

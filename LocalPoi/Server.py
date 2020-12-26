@@ -1,17 +1,50 @@
-import pymongo
-import json
-import socket
-import threading
+import pymongo,json,socket,threading,smtplib
+from email.message import EmailMessage
 """
 this is the local version of poi , 
 this version should only be used to build profiles on
 your local machine , for remote use check the 'CommandClientRemote' client
 """
+
+class EmailHandler:
+    def __init__(self,collection):
+        self.collection = collection
+    def create_temp_email_data(self):
+        cursor =  self.collection.find()
+        with open("temp.txt" , "w") as file:
+            for profile in cursor:
+                file.write(str(profile))
+
+    def temp_data(self):
+        with open("temp.txt" , "rb") as file:
+            return file.read()
+
+
+    def send_email(self,data,client):
+        self.create_temp_email_data() #getting all the profiles
+        msg = EmailMessage()
+        msg["Subject"] = 'POI Data'
+        msg["From"] = sender
+        msg["To"] = receiver
+        msg.add_attachment(self.temp_data,maintype = 'text' , subtype = "plain" , filename = "data.txt")
+        with smtplib.SMTP_SSL('smtp.gmail.com' ,465) as smtp:
+            try:
+                smtp.login(sender,self.temp_email_password)
+                smtp.send_message(msg)              
+            except :
+                raise e
+
+
+
 class MongoHandler:
     def __init__(self):
         self.client = pymongo.MongoClient("mongodb://localhost:27017/")
         self.db = self.client['persons']
-        self.collection = self.db["profiles"]
+        self.collection = self.db["profiles"] #main collection
+        self.email_collection = self.db["emailconfig"]
+        self.ssl_port = 466
+        self.email_handler = EmailHandler(self.collection)
+    
     def profile_query(self,data):
         query = {"firstname" : data["firstname"],
                  "lastname" : data["lastname"]}
@@ -61,8 +94,31 @@ class MongoHandler:
         new_value = {set_type :{path : value}} #setting new value(must be unique)
         status = self.collection.update_one(self.profile_query(data) ,new_value  ).acknowledged
         self.send_crud_status(client, message,status)
+    
+    def add_parent_email(self,data,client):
+        status = self.email_collection.insert_one({"parentconfigv" : data["email"]}).acknowledged
+        self.send_crud_status(client, "CONFIG_COMPLETE",status)
 
-        
+    def delete_email_recipient(self,data,client):
+
+        status = self.email_collection.delete_one({"nickname" : data["nickname"] })
+        self.send_crud_status(client,"EMAIL_RECIPIENT_REMOVED",status)
+
+    def add_email_recipient(self,data,client):
+        new_value = {
+            "email" : data["email"],
+            "nickname": data["email_name"]
+        }
+        status = self.email_collection.insert_one( new_value).acknowledged
+        self.send_crud_status(client,"EMAIL_RECIPIENT_ADDED" , status)
+
+    def email_exists(self,email):
+        data = self.email_collection.find_one({"email" : email})
+        if data == None:
+            return False
+        else:
+            self.email_handler.temp_email_password = data["password"]#avoiding a second query to get password
+            return True
 
 
 
@@ -89,6 +145,17 @@ class Server :
                 self.mongo_handler.modify_entry(data,client,"ENTRY_ACCEPTED","$set",data["data"])
             elif data["type"] == "DELETE_ENTRY":
                 self.mongo_handler.modify_entry(data,client,"ENTRY_DELETED","$unset", "")
+            elif data["type"] == "EMAIL_CONFIG":
+                self.mongo_handler.add_parent_email(data,client)
+            elif data["type"] == "SEND_EMAIL":
+                if self.mongo_handler.email_exists(data["email"]) == True:  
+                        self.mongo_handler.email_handler.send_email(data,client)
+                else:
+                    client.send("EMAIL_DONT_EXIST")
+            elif data["type"] == "EMAIL_RECIPIENT_ADD":
+                self.mongo_handler.add_email_recipient(data,client)
+            elif data["type"] == "REMOVE_EMAIL_RECIPIENT":
+                self.mongo_handler.delete_email_recipient(data,client)
 
                 
         except Exception as e:
