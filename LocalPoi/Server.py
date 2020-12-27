@@ -24,15 +24,17 @@ class EmailHandler:
         self.create_temp_email_data() #getting all the profiles
         msg = EmailMessage()
         msg["Subject"] = 'POI Data'
-        msg["From"] = sender
-        msg["To"] = receiver
-        msg.add_attachment(self.temp_data,maintype = 'text' , subtype = "plain" , filename = "data.txt")
+        msg["From"] = data["sender"]
+        msg["To"] = data["receiver"]
+        msg.add_attachment(self.temp_data(),maintype = 'text'  , subtype = "plain", filename = "data.txt")
         with smtplib.SMTP_SSL('smtp.gmail.com' ,465) as smtp:
             try:
-                smtp.login(sender,self.temp_email_password)
-                smtp.send_message(msg)              
+                smtp.login(data["sender"],self.temp_email_password)
+                smtp.send_message(msg)
+                client.send("EMAIL_SENT".encode("ascii"))              
             except :
-                raise e
+                client.send("ISSUE".encode("ascii"))
+                
 
 
 
@@ -96,7 +98,7 @@ class MongoHandler:
         self.send_crud_status(client, message,status)
     
     def add_parent_email(self,data,client):
-        status = self.email_collection.insert_one({"parentconfigv" : data["email"]}).acknowledged
+        status = self.email_collection.insert_one({"parentconfigv" : data["email"] , "parentpass" : data["password"]}).acknowledged
         self.send_crud_status(client, "CONFIG_COMPLETE",status)
 
     def delete_email_recipient(self,data,client):
@@ -113,12 +115,22 @@ class MongoHandler:
         self.send_crud_status(client,"EMAIL_RECIPIENT_ADDED" , status)
 
     def email_exists(self,email):
-        data = self.email_collection.find_one({"email" : email})
+        data = self.email_collection.find_one({"parentconfigv" : email})
         if data == None:
             return False
         else:
-            self.email_handler.temp_email_password = data["password"]#avoiding a second query to get password
+            self.email_handler.temp_email_password = data["parentpass"]#avoiding a second query to get password
             return True
+
+    def send_profile_list(self,client):
+        data  = list(self.collection.find({} , {"_id" :0 , "firstname":1 , "lastname":1 , "entries":1}))
+        if len(data)< 1:
+            client.send("50".encode("ascii"))
+            client.send("NONE".encode("ascii"))
+        else:
+            client.send(str(len(json.dumps(data).encode("ascii"))).encode("ascii")) #sending the size of bytes encoded
+            client.send(json.dumps(data).encode("ascii")) #sending actual data
+            
 
 
 
@@ -132,7 +144,7 @@ class Server :
         self.mongo_handler = MongoHandler()
         
     def route_type(self, data,client,addr):
-        try:
+    
             if data["type"] == "PROFILE_CREATION" :
                 self.mongo_handler.create_profile(data,client)
             elif data["type"] == "PROFILE_REQUEST":
@@ -148,19 +160,18 @@ class Server :
             elif data["type"] == "EMAIL_CONFIG":
                 self.mongo_handler.add_parent_email(data,client)
             elif data["type"] == "SEND_EMAIL":
-                if self.mongo_handler.email_exists(data["email"]) == True:  
+                if self.mongo_handler.email_exists(data["sender"]) == True:  
                         self.mongo_handler.email_handler.send_email(data,client)
                 else:
-                    client.send("EMAIL_DONT_EXIST")
+                    client.send("EMAIL_DONT_EXIST".encode("ascii"))
             elif data["type"] == "EMAIL_RECIPIENT_ADD":
                 self.mongo_handler.add_email_recipient(data,client)
             elif data["type"] == "REMOVE_EMAIL_RECIPIENT":
                 self.mongo_handler.delete_email_recipient(data,client)
+            elif data["type"] == "ALL":
+                self.mongo_handler.send_profile_list(client)
 
-                
-        except Exception as e:
-            print("issue")
-            print(e)
+
 
         
     def client_thread(self,client , addr ):

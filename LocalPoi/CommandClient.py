@@ -184,7 +184,31 @@ class Client:
             "lastname" :last_name
         }
         self.send_request(profile_data,"profile_view")
+    def display_all_profiles(self, incoming_data):
+           profiles= json.loads(incoming_data)
+           for profile in profiles:
+                print("First Name:"+profile["firstname"])
+                print("Last Name:"+profile["lastname"])
+                if "entries" in profile:
+                    print("Entries:"+str(len(list(profile["entries"])))) # number of entries
+                print("__________________________")
 
+
+    def gather_full_list(self):
+        formatted_request = json.dumps({"type" : "ALL"})
+        data_size = len(formatted_request)
+        #send size and then data
+        self.client.send(str(data_size).encode("ascii"))
+        self.client.send(formatted_request.encode("ascii"))
+        #receive size and then data
+        incoming_data_size = self.client.recv(60).decode("ascii")
+        incoming_data = self.client.recv(int(incoming_data_size)).decode("ascii")
+        if incoming_data == "issue":
+            print("issue gathering list")
+        elif incoming_data == "NONE":
+            print("no profiles")
+        else:
+            self.display_all_profiles(incoming_data)
 
     # Request routing
     def check_status_response(self,response ,server_accept_message,success_message):
@@ -220,6 +244,11 @@ class Client:
         elif request == "breached":
             self.check_status_response(response,"BREACH_PROTOCOL_SUCCESSFUL",
                colored("Breach Protocol Complete!! Check the success with (VIEW ALL)" , "green")  )
+        elif request == "send_email":
+            print("Make sure you turn on to use this feature without errors : 'Less secure app access'")
+            self.check_status_response(response,"EMAIL_SENT",
+               colored("Email Successful Sent!!" , "green")  )
+
 
 
 
@@ -358,6 +387,16 @@ class Client:
         }
         self.send_request(remove_data,"email_recipient_remove")
 
+    def send_profile(self):
+        sender = input("what email would you like to send from?:")
+        receiver = input("who would you like to receive this profile?:")
+        email_data = {
+                "type":"SEND_EMAIL",
+                "sender":sender,
+                "receiver":receiver
+        }
+        self.send_request(email_data,"send_email")
+
     #GENERAL PURPOSE SECTION
     def command_check(self,command):
         if  command == "create" or command == "1":
@@ -378,6 +417,11 @@ class Client:
             self.add_email_recipient()
         elif command == "remove recipient":
             self.remove_email_recipient()
+        elif command == "view profiles":
+            self.gather_full_list()
+        elif command == "send profiles":
+            self.send_profile()
+
         elif command == "--help" or command == "help":
             self.help()
         else:
