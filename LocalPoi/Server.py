@@ -121,6 +121,7 @@ class MongoHandler:
             return False
         else:
             self.email_handler.temp_email_password = data["parentpass"]#avoiding a second query to get password
+            self.email_handler.temp_email = data["parentconfigv"]
             return True
 
     def send_profile_list(self,client):
@@ -140,10 +141,59 @@ class MongoHandler:
             return code["breachcode"]
 
 
-        #"BREACH_CONFIGED"
-    def breach_delete(self,client,password):
-    def send_email_to_all(self,client):     
-    def configure_breach(self,client,password):
+    def breach_delete(self):
+        profile_status = self.collection.delete_many({}).acknowledged
+        email_status = self.email_collection.delete_many({}).acknowledged
+        breach_status = self.breach_collection.delete_many({}).acknowledged
+        if profile_status == False or email_status == False or breach_status == False:
+            return False
+        else:
+            return True
+
+    def breach_code_check(self,client,code):
+        if self.breach_code() == None: # there is no code setup
+            client.send("error".encode("ascii"))
+        else: 
+            if self.breach_code() == code: # correct code was entered
+                if self.breach_delete() == False: # an error occured
+                    client.send("BREACH_PROTOCOL_SUCCESSFUL".encode("ascii"))
+                else:
+                    client.send("error".encode("ascii"))
+            else:
+                client.send("error".encode("ascii"))
+    def remove_all(self,client,collection):
+        if collection == "email" :
+            email_status =  self.email_collection.delete_many({}).acknowledged
+            self.send_crud_status(client,"DELETED_EVERYTHING",email_status)
+        else:
+            email_status =  self.collection.delete_many({}).acknowledged
+            self.send_crud_status(client,"DELETED_EVERYTHING",email_status)
+
+
+    def filter_recipients(self):
+        emails = list(self.email_collection.find())
+        for email in emails:
+            if "parentconfigv" in email: #the parent email that is used for sending.
+                    emails.remove(email)
+        return emails
+
+    def send_email_to_all(self,client):
+        emails = self.filter_recipients()#list of dictionaries
+        for email_entry in emails:
+            address = email_entry["email"] # actual email address
+            send_email_data = {
+                "sender": self.email_handler.temp_email
+                "receiver":address
+            }
+            self.email_handler.send_email(send_email_data,client)
+
+
+    def configure_breach(self,client,code):
+        if self.breachcode == None:
+            status = self.breach_collection.insert_one({"breachcode" : code }).acknowledged
+            self.send_crud_status(client,"BREACH_CONFIGED",status)
+        else:
+            client.send("issue".encode("ascii"))
 
 
 
