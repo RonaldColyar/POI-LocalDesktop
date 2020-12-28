@@ -387,7 +387,7 @@ class Client:
         }
         self.send_request(remove_data,"email_recipient_remove")
 
-    def send_profile(self):
+    def send_profiles(self):
         sender = input("what email would you like to send from?:")
         receiver = input("who would you like to receive this profile?:")
         email_data = {
@@ -420,7 +420,7 @@ class Client:
         elif command == "view profiles":
             self.gather_full_list()
         elif command == "send profiles":
-            self.send_profile()
+            self.send_profiles()
 
         elif command == "--help" or command == "help":
             self.help()

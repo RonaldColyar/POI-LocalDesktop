@@ -44,6 +44,7 @@ class MongoHandler:
         self.db = self.client['persons']
         self.collection = self.db["profiles"] #main collection
         self.email_collection = self.db["emailconfig"]
+        self.breach_collection = self.db["breachconfig"]
         self.ssl_port = 466
         self.email_handler = EmailHandler(self.collection)
     
@@ -130,7 +131,20 @@ class MongoHandler:
         else:
             client.send(str(len(json.dumps(data).encode("ascii"))).encode("ascii")) #sending the size of bytes encoded
             client.send(json.dumps(data).encode("ascii")) #sending actual data
-            
+    def breach_code(self):
+        code = self.breach_collection.find()
+        if len(list(code)) < 1 :
+            return None
+
+        else:
+            return code["breachcode"]
+
+
+        #"BREACH_CONFIGED"
+    def breach_delete(self,client,password):
+    def send_email_to_all(self,client):     
+    def configure_breach(self,client,password):
+
 
 
 
