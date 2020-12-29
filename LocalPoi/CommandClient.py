@@ -18,6 +18,35 @@ from tkinter.filedialog import askopenfilename
 
 
 init()#allow colored text to run on windows machines
+class Help:
+    def help_tier_2(self):
+        print(colored("[6]","green") 
+            + " view profiles-prints a list of all profiles")
+        print(colored("[7]","green") 
+            + " config breach-Sets up a security protocol for you to remove all data")
+        print(colored("[8]","green") 
+            + " breached-Removes all data in seconds to avoid security breach!!")
+        print(colored("[9]","green") 
+            + " configure email-Creates a parent email that will be used to send profiles")
+        print(colored("[11]","green") 
+            + " send profiles-Sends all profile data to a chosen email")
+        print(colored("[12]","green") 
+            + " add recipient-adds an email to your contacts")
+        print(colored("[13]","green") 
+            + " send profiles to all-sends profiles to all emails in your contacts")
+        
+    def help(self):
+        print(colored("[1]","green") 
+            + " create-Allows you to create a new profile")
+        print(colored("[2]","green") 
+            + " delete-Allows you to delete a profile")
+        print(colored("[3]","green") 
+            + " view-Allows you to view a profile in a gui")
+        print(colored("[4]","green") 
+            + " edit-Allows you to edit a profile's attribute or add a new attribute!")
+        print(colored("[5]","green") 
+            + " entry-Allows you to make a information entry on a profile")
+        self.help_tier_2()
 
 class ResultWindow:
 
@@ -43,6 +72,10 @@ class ResultWindow:
             value = self.data[key]
             file.write(key + ":"+value)
             file.write("\n")
+      pymsgbox.alert(
+                text = "Finished!!",
+                title = "success" ,
+                button = "Ok")
 
     def create_files(self,dir_name):
         try:
@@ -118,6 +151,80 @@ class ResultWindow:
         tkinter.Message(child,text = data , font=("Courier", 20), fg = "#d3d3d3",bg = "#222").pack()
         child.mainloop()
 
+class ResponseChecker:
+    # Request routing
+
+    def display_profile(self,response):
+        new_dict = json.loads(response)
+        master = tkinter.Tk()
+        result_window = ResultWindow(master,new_dict)
+        master.mainloop()
+
+
+    def check_profile_exist_reponse(self,response,client ):
+        if response == "PROFILE_FOUND":
+                data_size = int(str(client.recv(70).decode("ascii")))#size
+                client.send("GOT".encode("ascii"))
+                data = client.recv(data_size).decode("ascii")
+                self.display_profile(data)
+                
+        else:
+            print("Profile Does not exist!!")
+
+
+    def check_status_response(self,response ,server_accept_message,success_message):
+        if response == server_accept_message:
+                print(success_message)
+        else:
+                print("Error From Server!")
+
+    def check_response_tier_3(self,request,response):
+        if request == "breach_change":
+            pass
+
+    def check_response_tier_2(self,request,response):
+        if request == "email_recipient_add":
+            self.check_status_response(response,"EMAIL_RECIPIENT_ADDED",
+               colored("Recipient Added!" , "green")  )
+        elif request ==  "email_recipient_remove":
+            self.check_status_response(response,"EMAIL_RECIPIENT_REMOVED",
+               colored("Recipient Removed!" , "green")  )
+        elif request == "breached":
+            print("You must configure breach before using (breached) with the command(config breach)")
+            self.check_status_response(response,"BREACH_PROTOCOL_SUCCESSFUL",
+               colored("Breach Protocol Complete!! Check the success with (VIEW ALL)" , "green")  )
+
+        elif request == "send_email":
+            print("Make sure you turn on to use this feature without errors : 'Less secure app access'")
+            self.check_status_response(response,"EMAIL_SENT",
+               colored("Email Successful Sent!!" , "green")  )
+        elif request == "breach_config":
+            self.check_status_response(response,"BREACH_CONFIGED",
+               colored("Breach Protocol Setup!!" , "green")  )
+        else:
+            self.check_response_tier_3(request,response)
+
+
+
+    def check_response(self,request,response,client):
+        if request == "profile_creation" :
+            self.check_status_response(response,"ACCEPTED_CREATION",
+                "Profile Successfully Created!! ,View it with the command(view)")
+        elif request == "profile_view":
+            self.check_profile_exist_reponse(response,client)
+        elif request == "profile_deletion":
+            self.check_status_response(response,"DELETION_ACCEPTED",colored("Profile Successfully Removed!!" , "red"))
+        elif request == "entry_request" :
+            self.check_status_response(response,"ENTRY_ACCEPTED" ,
+             colored("Entry Successfully Added!! View it with the command(view)" , "green"))
+        elif request == "entry_deletion":
+            self.check_status_response(response,"ENTRY_DELETED" ,
+             colored("Entry Successfully Deleted!! View the profile with the command(view)" , "green"))
+        elif request == "email_config":
+             self.check_status_response(response,"CONFIG_COMPLETE" ,
+             colored("Email Configuration Complete! You can now broadcast your data to your target audience!" , "green"))
+        else:
+            self.check_response_tier_2(request,response)
 
         
         
@@ -131,6 +238,8 @@ class Client:
     def __init__(self):
         self.running = True
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.help = Help()
+        self.response_checker = ResponseChecker()
         try:
             self.client.connect(('127.0.0.1',50222))
         except:
@@ -160,6 +269,7 @@ class Client:
             else:
                 profile_data["image"] = "NOT_PRESENT"
                 self.send_request(profile_data,"profile_creation")
+
     def delete_profile(self):
         first = input("First Name:")
         last = input("Last Name:")
@@ -176,22 +286,10 @@ class Client:
 
 
     def display_profile(self,response):
-
         new_dict = json.loads(response)
         master = tkinter.Tk()
         result_window = ResultWindow(master,new_dict)
         master.mainloop()
-
-
-    def check_profile_exist_reponse(self,response):
-        if response == "PROFILE_FOUND":
-                data_size = int(str(self.client.recv(70).decode("ascii")))#size
-                self.client.send("GOT".encode("ascii"))
-                data = self.client.recv(data_size).decode("ascii")
-                self.display_profile(data)
-        else:
-            print("Profile Doesn't exist!")
-
 
     def view_profile(self):
         first_name = input("First Name:")
@@ -237,73 +335,16 @@ class Client:
             print(print_statement)
         else:
             print("issue from server")
+
     def send_profiles_to_all(self):
         self.send_request_size({"type"})
-
-
-    # Request routing
-    def check_status_response(self,response ,server_accept_message,success_message):
-        if response == server_accept_message:
-                print(success_message)
-        else:
-                print("Error From Server!")
-
-    def check_response_tier_3(self,request,response):
-        if request == "":
-            pass
-
-    def check_response_tier_2(self,request,response):
-        if request == "email_recipient_add":
-            self.check_status_response(response,"EMAIL_RECIPIENT_ADDED",
-               colored("Recipient Added!" , "green")  )
-        elif request ==  "email_recipient_remove":
-            self.check_status_response(response,"EMAIL_RECIPIENT_REMOVED",
-               colored("Recipient Removed!" , "green")  )
-        elif request == "breached":
-            self.check_status_response(response,"BREACH_PROTOCOL_SUCCESSFUL",
-               colored("Breach Protocol Complete!! Check the success with (VIEW ALL)" , "green")  )
-        elif request == "send_email":
-            print("Make sure you turn on to use this feature without errors : 'Less secure app access'")
-            self.check_status_response(response,"EMAIL_SENT",
-               colored("Email Successful Sent!!" , "green")  )
-        elif request == "breach_config":
-            self.check_status_response(response,"BREACH_CONFIGED",
-               colored("Breach Protocol Setup!!" , "green")  )
-        else:
-            self.check_response_tier_3(request,response)
-
-
-
-    def check_response(self,request,response):
-        if request == "profile_creation" :
-            self.check_status_response(response,"ACCEPTED_CREATION",
-                "Profile Successfully Created!! ,View it with the command(view)")
-        elif request == "profile_view":
-            self.check_profile_exist_reponse(response)
-        elif request == "profile_deletion":
-            self.check_status_response(response,"DELETION_ACCEPTED",colored("Profile Successfully Removed!!" , "red"))
-        elif request == "entry_request" :
-            self.check_status_response(response,"ENTRY_ACCEPTED" ,
-             colored("Entry Successfully Added!! View it with the command(view)" , "green"))
-        elif request == "entry_deletion":
-            self.check_status_response(response,"ENTRY_DELETED" ,
-             colored("Entry Successfully Deleted!! View the profile with the command(view)" , "green"))
-        elif request == "email_config":
-             self.check_status_response(response,"CONFIG_COMPLETE" ,
-             colored("Email Configuration Complete! You can now broadcast your data to your target audience!" , "green"))
-        else:
-            self.check_response_tier_2(request,response)
-
-
-
-
-
 
 
     def send_request(self,data,message_type):
         self.send_request_size(data)
         response = self.client.recv(70).decode("ascii")
-        self.check_response(message_type,response)
+        print(response)
+        self.response_checker.check_response(message_type,response, self.client)
 
 
 
@@ -341,18 +382,6 @@ class Client:
 
 
 
-
-    def help(self):
-        print(colored("[1]","green") 
-            + " create-Allows you to create a new profile")
-        print(colored("[2]","green") 
-            + " delete-Allows you to delete a profile")
-        print(colored("[3]","green") 
-            + " view-Allows you to view a profile in a gui")
-        print(colored("[4]","green") 
-            + " edit-Allows you to edit a profile's attribute or add a new attribute!")
-        print(colored("[5]","green") 
-            + " entry-Allows you to make a information entry on a profile")
     #ENTRIES SECTION
     def add_entry(self):
         first = input("First Name:")
@@ -385,26 +414,28 @@ class Client:
         if confirmation == "y" or confirmation == "Y":
             confirmation2 = input("Are you very very sure? this process can not be reversed!![y/n]")
             if confirmation2 == "y" or confirmation2 == "Y":
-                self.send_breach_request()
+                self.send_breach_request("BREACHED","breached")
             else:
                 print("Breach Aborted!!")
         else:
             print("Breach Aborted!!")
-    def send_breach_request(self):
-        code = input("what is your code?:")
-        breach_data = {
-            "type": "BREACHED",
-            "code": code
-        }
-        self.send_request(breach_data , "breached")
-    def breach_configuration(self):
+    def send_breach_request(self,type_message,request_type):
         code = input("what is your code?(security):")
-        setup_data = {
-
-            "type" : "BREACH_CONFIG",
+        breach_data = {
+            "type": type_message,
             "code": code
         }
-        self.send_request(setup_data,"breach_config")
+        self.send_request(breach_data , request_type)
+
+    def change_breach_code(self):
+        original_code = input("what is your old code?:")
+        new_code = input("what is your new code?:")
+        breach_data = {
+            "type": "BREACH_CHANGE",
+            "code":original_code,
+            "new_code" : new_code
+        }
+        self.send_request(breach_data,"breach_change")
 
         
 
@@ -455,11 +486,11 @@ class Client:
             else:
                 self.send_general_command("DEL_ALL_PROFILES","DELETED_EVERYTHING", "successfully deleted all!!")
         elif command == "config breach":
-            self.breach_configuration()
+            self.send_breach_request("BREACH_CONFIG","breach_config")
         elif command == "breached":
             self.breach_protocol()
         elif command == "--help" or command == "help":
-            self.help()
+            self.help.help()
         else:
             print("command unknown")
 

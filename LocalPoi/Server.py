@@ -14,6 +14,7 @@ class EmailHandler:
         with open("temp.txt" , "w") as file:
             for profile in cursor:
                 file.write(str(profile))
+                file.write("\n")
 
     def temp_data(self):
         with open("temp.txt" , "rb") as file:
@@ -134,31 +135,35 @@ class MongoHandler:
             client.send(json.dumps(data).encode("ascii")) #sending actual data
     def breach_code(self):
         code = self.breach_collection.find()
-        if len(list(code)) < 1 :
+        code_list = list(code)
+        if len(code_list) < 1 :
             return None
 
         else:
-            return code["breachcode"]
+            return code_list[0]["breachcode"]
 
     def breach_delete(self):
         profile_status = self.collection.delete_many({}).acknowledged
         email_status = self.email_collection.delete_many({}).acknowledged
-        breach_status = self.breach_collection.delete_many({}).acknowledged
-        if profile_status == False or email_status == False or breach_status == False:
+        if profile_status == False or email_status == False :
             return False
+            
         else:
             return True
 
     def breach_delete_check(self,client,code):
         if self.breach_code() == None: # there is no code setup
+            print("error2")
             client.send("error".encode("ascii"))
         else: 
             if self.breach_code() == code: # correct code was entered
-                if self.breach_delete() == False: # an error occured
+                if self.breach_delete() == True: # an error occured
                     client.send("BREACH_PROTOCOL_SUCCESSFUL".encode("ascii"))
                 else:
+                    print("error")
                     client.send("error".encode("ascii"))
             else:
+
                 client.send("error".encode("ascii"))
 
     def remove_all(self,client,collection):
@@ -213,7 +218,7 @@ class MongoHandler:
 
 
     def configure_breach(self,client,code):
-        if self.breachcode == None:
+        if self.breach_code() == None:
             status = self.breach_collection.insert_one({"breachcode" : code }).acknowledged
             self.send_crud_status(client,"BREACH_CONFIGED",status)
         else:
@@ -241,11 +246,13 @@ class Server :
             elif data["type"] == "ALL":
                 self.mongo_handler.send_profile_list(client)
             elif data["type"] == "DEL_ALL_EMAILS":
-                self.remove_all(client,"email")
+                self.mongo_handler.remove_all(client,"email")
             elif data["type"] == "DEL_ALL_PROFILES":
-                self.remove_all(client,"profiles")
+                self.mongo_handler.remove_all(client,"profiles")
+            elif data["type"] == "BREACH_CONFIG":
+                self.mongo_handler.configure_breach(client,data["code"])
             elif data["type"] == "BREACHED":
-                self.breach_delete_check(client,data["code"])
+                self.mongo_handler.breach_delete_check(client,data["code"])
         
 
     def routing_second_tier(self,data,client):
