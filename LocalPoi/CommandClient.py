@@ -36,12 +36,22 @@ class ResultWindow:
                 file.write(base64.b64decode(self.data["image"]))
             with open(dir_name+"/profiledata.txt" , "w") as file:
                 #write all data that isn't the image
-                for key in self.data:
-                    if key != "image":
-                        file.write(key+":"+self.data[key])
-                        file.write("\n")
+                for key in self.data:#dict
+                         if key == "entries": #o(n) 
+                             file.write("Entries:")
+                             for entry in self.data["entries"]:
+                                value  = self.data["entries"][entry]
+                                file.write("  ")#making indentation for easy readying
+                                file.write(entry +":"+value) #writing the key value pair
+                                file.write("\n") # new line for next entry
+                         else:
+                            value = self.data[key]
+                            file.write(key + ":"+value)
+                            file.write("\n")
 
-        except :
+
+        except Exception as e :
+            print(e)
             pymsgbox.alert(
                 text = "directory already exist",
                 title = "Issue.." ,
@@ -53,10 +63,11 @@ class ResultWindow:
         download_window = tkinter.Toplevel()
         heading = tkinter.Label(download_window, 
             text = "Name Of New Directory(for profile content) make sure the directory do not exist!").pack()
-        data_input = ttk.Entry(heading)
+        data_input = ttk.Entry(download_window,heading)
         data_input.pack()
         download_button = tkinter.Button(download_window, text = "Download" ,
-                 command = lambda: self.create_files(data_input))
+                 command = lambda: self.create_files(data_input.get())).pack()
+        download_window.mainloop()
 
 
 
@@ -68,8 +79,8 @@ class ResultWindow:
         #widgets
         master.config(bg = "#222")
         picture = tkinter.Label(master , image = self.formatted_image ,bg = "#222" ).pack()
-        download_button = tkinter.Label(master , text = "Download Entry" ,
-            bg = "#666", fg = "#fff" ,borderwidth = 0.5 , command = self.download_profile())
+        download_button = tkinter.Button(master , text = "Download Entry" ,
+            bg = "#666", fg = "#fff" ,borderwidth = 0.5 , command = lambda : self.download_profile()).pack()
         first_name = tkinter.Label(master,text ="First:"+ data["firstname"],
             bg = "#222", fg = "#fff",font=("Courier", 20),relief = "ridge").pack()
         last_name = tkinter.Label(master,text = "Last:"+ data["lastname"],
@@ -193,13 +204,15 @@ class Client:
                     print("Entries:"+str(len(list(profile["entries"])))) # number of entries
                 print("__________________________")
 
-
-    def gather_full_list(self):
-        formatted_request = json.dumps({"type" : "ALL"})
+    def send_request_size(self,request):
+        formatted_request = json.dumps(request)
         data_size = len(formatted_request)
         #send size and then data
         self.client.send(str(data_size).encode("ascii"))
         self.client.send(formatted_request.encode("ascii"))
+
+    def gather_full_list(self):
+        self.send_request_size({"type" : "ALL"})
         #receive size and then data
         incoming_data_size = self.client.recv(60).decode("ascii")
         incoming_data = self.client.recv(int(incoming_data_size)).decode("ascii")
@@ -210,12 +223,48 @@ class Client:
         else:
             self.display_all_profiles(incoming_data)
 
+    def send_general_command(self , message,server_success_message,print_statement):
+        self.send_request_size({"type": message})
+        response = self.client.recv(70).decode("ascii")
+        if response == server_success_message:
+            print(print_statement)
+        else:
+            print("issue from server")
+    def send_profiles_to_all(self):
+        self.send_request_size({"type"})
+
+
     # Request routing
     def check_status_response(self,response ,server_accept_message,success_message):
         if response == server_accept_message:
                 print(success_message)
         else:
                 print("Error From Server!")
+
+    def check_response_tier_3(self,request,response):
+        if request == "":
+            pass
+
+    def check_response_tier_2(self,request,response):
+        if request == "email_recipient_add":
+            self.check_status_response(response,"EMAIL_RECIPIENT_ADDED",
+               colored("Recipient Added!" , "green")  )
+        elif request ==  "email_recipient_remove":
+            self.check_status_response(response,"EMAIL_RECIPIENT_REMOVED",
+               colored("Recipient Removed!" , "green")  )
+        elif request == "breached":
+            self.check_status_response(response,"BREACH_PROTOCOL_SUCCESSFUL",
+               colored("Breach Protocol Complete!! Check the success with (VIEW ALL)" , "green")  )
+        elif request == "send_email":
+            print("Make sure you turn on to use this feature without errors : 'Less secure app access'")
+            self.check_status_response(response,"EMAIL_SENT",
+               colored("Email Successful Sent!!" , "green")  )
+        elif request == "breach_config":
+            self.check_status_response(response,"BREACH_CONFIGED",
+               colored("Breach Protocol Setup!!" , "green")  )
+        else:
+            self.check_response_tier_3(request,response)
+
 
 
     def check_response(self,request,response):
@@ -235,19 +284,9 @@ class Client:
         elif request == "email_config":
              self.check_status_response(response,"CONFIG_COMPLETE" ,
              colored("Email Configuration Complete! You can now broadcast your data to your target audience!" , "green"))
-        elif request == "email_recipient_add":
-            self.check_status_response(response,"EMAIL_RECIPIENT_ADDED",
-               colored("Recipient Added!" , "green")  )
-        elif request ==  "email_recipient_remove":
-            self.check_status_response(response,"EMAIL_RECIPIENT_REMOVED",
-               colored("Recipient Removed!" , "green")  )
-        elif request == "breached":
-            self.check_status_response(response,"BREACH_PROTOCOL_SUCCESSFUL",
-               colored("Breach Protocol Complete!! Check the success with (VIEW ALL)" , "green")  )
-        elif request == "send_email":
-            print("Make sure you turn on to use this feature without errors : 'Less secure app access'")
-            self.check_status_response(response,"EMAIL_SENT",
-               colored("Email Successful Sent!!" , "green")  )
+        else:
+            self.check_response_tier_2(request,response)
+
 
 
 
@@ -255,10 +294,7 @@ class Client:
 
 
     def send_request(self,data,message_type):
-        message = json.dumps(data) #json string
-        message_size = len(message.encode("ascii")) # get the size for the first message
-        self.client.send(str(message_size).encode("ascii")) #sending size
-        self.client.send(message.encode("ascii"))#sending real data
+        self.send_request_size(data)
         response = self.client.recv(70).decode("ascii")
         self.check_response(message_type,response)
 
@@ -273,10 +309,7 @@ class Client:
 
     
     def send_edit_request(self,edit_data):
-        data = json.dumps(edit_data)
-        data_size = len(data.encode("ascii"))
-        self.client.send(str(data_size).encode("ascii"))
-        self.client.send(data.encode("ascii"))
+        self.send_request_size(edit_data)
         response = self.client.recv(100).decode("ascii")
         self.check_edit_response(response)
 
@@ -345,17 +378,27 @@ class Client:
         if confirmation == "y" or confirmation == "Y":
             confirmation2 = input("Are you very very sure? this process can not be reversed!![y/n]")
             if confirmation2 == "y" or confirmation2 == "Y":
-                security_code = input("What is the security code??")
+                self.send_breach_request()
             else:
                 print("Breach Aborted!!")
         else:
             print("Breach Aborted!!")
-    def send_breach_request(self,code):
+    def send_breach_request(self):
+        code = input("what is your code?:")
         breach_data = {
             "type": "BREACHED",
             "code": code
         }
         self.send_request(breach_data , "breached")
+    def breach_configuration(self):
+        code = input("what is your code?(security):")
+        setup_data = {
+
+            "type" : "BREACH_CONFIG",
+            "code": code
+        }
+        self.send_request(setup_data,"breach_config")
+
         
 
 
@@ -396,20 +439,26 @@ class Client:
                 "receiver":receiver
         }
         self.send_request(email_data,"send_email")
-
     #GENERAL PURPOSE SECTION
-    def command_check(self,command):
-        if  command == "create" or command == "1":
-            self.create_profile()
-        elif command == "view" or command == "3":
-            self.view_profile()
-        elif command == "edit" or command == "4":
-            self.edit_profile()
-        elif command == "delete" or command == "2":
-            self.delete_profile()
-        elif command == "entry" or command == "5":
-            self.add_entry()
-        elif command == "delete entry":
+    def third_tier_command_check(self,command):
+        if command == "remove data":
+            del_type = input("What data would you like to remove?(profile,email):")
+            if del_type == "email":
+                self.send_general_command("DEL_ALL_EMAILS", "DELETED_EVERYTHING","successfully deleted all!!")
+            else:
+                self.send_general_command("DEL_ALL_PROFILES","DELETED_EVERYTHING", "successfully deleted all!!")
+        elif command == "config breach":
+            self.breach_configuration()
+        elif command == "breached":
+            self.breach_protocol()
+        elif command == "--help" or command == "help":
+            self.help()
+        else:
+            print("command unknown")
+
+
+    def second_tier_command_check(self,command):
+        if command == "delete entry":
             self.delete_entry()
         elif command == "configure email":
             self.configure_email()
@@ -421,11 +470,27 @@ class Client:
             self.gather_full_list()
         elif command == "send profiles":
             self.send_profiles()
-
-        elif command == "--help" or command == "help":
-            self.help()
+        elif command == "send profiles to all":
+            self.send_general_command("ALL_RECIPIENTS", "SENT_TO_ALL","Successfully Sent!!")
         else:
-            print("unknow command")
+            self.third_tier_command_check(command)
+
+    
+    def command_check(self,command):
+        if  command == "create" or command == "1":
+            self.create_profile()
+        elif command == "view" or command == "3":
+            self.view_profile()
+        elif command == "edit" or command == "4":
+            self.edit_profile()
+        elif command == "delete" or command == "2":
+            self.delete_profile()
+        elif command == "entry" or command == "5":
+            self.add_entry()
+
+        else:
+            self.second_tier_command_check(command)
+           
 
     def display_welcome_message(self):
             path = 'C:/Users/ronald/Git/Git Repos/POI/AsciiArt/Builder.txt'

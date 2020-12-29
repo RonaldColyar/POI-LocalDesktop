@@ -140,7 +140,6 @@ class MongoHandler:
         else:
             return code["breachcode"]
 
-
     def breach_delete(self):
         profile_status = self.collection.delete_many({}).acknowledged
         email_status = self.email_collection.delete_many({}).acknowledged
@@ -150,7 +149,7 @@ class MongoHandler:
         else:
             return True
 
-    def breach_code_check(self,client,code):
+    def breach_delete_check(self,client,code):
         if self.breach_code() == None: # there is no code setup
             client.send("error".encode("ascii"))
         else: 
@@ -161,13 +160,38 @@ class MongoHandler:
                     client.send("error".encode("ascii"))
             else:
                 client.send("error".encode("ascii"))
+
     def remove_all(self,client,collection):
         if collection == "email" :
             email_status =  self.email_collection.delete_many({}).acknowledged
             self.send_crud_status(client,"DELETED_EVERYTHING",email_status)
         else:
-            email_status =  self.collection.delete_many({}).acknowledged
-            self.send_crud_status(client,"DELETED_EVERYTHING",email_status)
+            profile_status =  self.collection.delete_many({}).acknowledged
+            self.send_crud_status(client,"DELETED_EVERYTHING",profile_status)
+
+    def change_breach_code(self,client,data):
+        if self.breach_code() == data["code"]:#correct code verification
+                status = self.breach_collection.update_one({"breachcode": data["code"]} , 
+                    {"$set" :{"breachcode":data["newcode"]}}).acknowledged
+                self.send_crud_status(client,"BREACH_UPDATED",status)
+        else:
+            client.send("issue".encode("ascii"))
+
+    def change_email_password(self,client,data):
+        status = self.email_collection.find_one({"parentconfigv":data["email"]} , 
+            {"$set":{"parentpass":data["newpass"]}}).acknowledged
+        self.send_crud_status(client,"PASSWORD_UPDATED",status)
+
+    def send_profiles_to_parent(self,client,data):
+        email_data = {
+                "sender":data["sender"],
+                "receiver": data["receiver"]
+        }
+        self.email_handler.send_email(email_data)
+
+
+
+            
 
 
     def filter_recipients(self):
@@ -182,7 +206,7 @@ class MongoHandler:
         for email_entry in emails:
             address = email_entry["email"] # actual email address
             send_email_data = {
-                "sender": self.email_handler.temp_email
+                "sender": self.email_handler.temp_email,
                 "receiver":address
             }
             self.email_handler.send_email(send_email_data,client)
@@ -193,7 +217,7 @@ class MongoHandler:
             status = self.breach_collection.insert_one({"breachcode" : code }).acknowledged
             self.send_crud_status(client,"BREACH_CONFIGED",status)
         else:
-            client.send("issue".encode("ascii"))
+            client.send("issue".encode("ascii")) 
 
 
 
@@ -206,8 +230,40 @@ class Server :
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.running = True
         self.mongo_handler = MongoHandler()
+
+
+
+    def routing_third_tier(self,data,client):
+            if data["type"] == "EMAIL_RECIPIENT_ADD":
+                self.mongo_handler.add_email_recipient(data,client)
+            elif data["type"] == "REMOVE_EMAIL_RECIPIENT":
+                self.mongo_handler.delete_email_recipient(data,client)
+            elif data["type"] == "ALL":
+                self.mongo_handler.send_profile_list(client)
+            elif data["type"] == "DEL_ALL_EMAILS":
+                self.remove_all(client,"email")
+            elif data["type"] == "DEL_ALL_PROFILES":
+                self.remove_all(client,"profiles")
+            elif data["type"] == "BREACHED":
+                self.breach_delete_check(client,data["code"])
         
-    def route_type(self, data,client,addr):
+
+    def routing_second_tier(self,data,client):
+            if data["type"] == "DELETE_ENTRY":
+                self.mongo_handler.modify_entry(data,client,"ENTRY_DELETED","$unset", "")
+            elif data["type"] == "EMAIL_CONFIG":
+                self.mongo_handler.add_parent_email(data,client)
+            elif data["type"] == "SEND_EMAIL":
+                if self.mongo_handler.email_exists(data["sender"]) == True:  
+                        self.mongo_handler.email_handler.send_email(data,client)
+                else:
+                    client.send("EMAIL_DONT_EXIST".encode("ascii"))
+            else:
+                self.routing_third_tier(data,client)
+
+
+        
+    def route_type(self, data,client):
     
             if data["type"] == "PROFILE_CREATION" :
                 self.mongo_handler.create_profile(data,client)
@@ -219,22 +275,8 @@ class Server :
                 self.mongo_handler.delete_profile(data,client)
             elif data["type"] == "ENTRY_REQUEST":
                 self.mongo_handler.modify_entry(data,client,"ENTRY_ACCEPTED","$set",data["data"])
-            elif data["type"] == "DELETE_ENTRY":
-                self.mongo_handler.modify_entry(data,client,"ENTRY_DELETED","$unset", "")
-            elif data["type"] == "EMAIL_CONFIG":
-                self.mongo_handler.add_parent_email(data,client)
-            elif data["type"] == "SEND_EMAIL":
-                if self.mongo_handler.email_exists(data["sender"]) == True:  
-                        self.mongo_handler.email_handler.send_email(data,client)
-                else:
-                    client.send("EMAIL_DONT_EXIST".encode("ascii"))
-            elif data["type"] == "EMAIL_RECIPIENT_ADD":
-                self.mongo_handler.add_email_recipient(data,client)
-            elif data["type"] == "REMOVE_EMAIL_RECIPIENT":
-                self.mongo_handler.delete_email_recipient(data,client)
-            elif data["type"] == "ALL":
-                self.mongo_handler.send_profile_list(client)
-
+            else:
+                self.routing_second_tier(data,client) # avoiding long blocks of code
 
 
         
@@ -248,7 +290,7 @@ class Server :
             if new_dict["type"] == "DICONNECT_":
                 thread_running = False
             else:
-                self.route_type(new_dict,client,addr)
+                self.route_type(new_dict,client)
 
     def start_server(self):
         self.server.bind((self.host,self.port))
