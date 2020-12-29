@@ -20,6 +20,7 @@ from tkinter.filedialog import askopenfilename
 init()#allow colored text to run on windows machines
 
 class ResultWindow:
+
     def image_check(self,data):
         if data["image"] == "NOT_PRESENT":
             self.formatted_image = tkinter.PhotoImage(file = 'defaultimage.png') 
@@ -29,25 +30,31 @@ class ResultWindow:
         else:
             self.formatted_image = tkinter.PhotoImage(master = self.master,data = data["image"])
 
+    def write_file_data(self,file,key):
+      if key == "entries": 
+            file.write("Entries:")
+            file.write("\n")
+            for entry in self.data["entries"]:
+                value  = self.data["entries"][entry]
+                file.write("  ")#making indentation for easy readying
+                file.write(entry +":"+value) #writing the key value pair
+                file.write("\n") # new line for next entry
+      else:
+            value = self.data[key]
+            file.write(key + ":"+value)
+            file.write("\n")
+
     def create_files(self,dir_name):
         try:
             os.mkdir(dir_name)
             with open(dir_name+"/profilepic.png" , "wb") as file:
                 file.write(base64.b64decode(self.data["image"]))
             with open(dir_name+"/profiledata.txt" , "w") as file:
-                #write all data that isn't the image
+                
                 for key in self.data:#dict
-                         if key == "entries": #o(n) 
-                             file.write("Entries:")
-                             for entry in self.data["entries"]:
-                                value  = self.data["entries"][entry]
-                                file.write("  ")#making indentation for easy readying
-                                file.write(entry +":"+value) #writing the key value pair
-                                file.write("\n") # new line for next entry
-                         else:
-                            value = self.data[key]
-                            file.write(key + ":"+value)
-                            file.write("\n")
+                    #write all data that isn't the image
+                    if key != "image":
+                        self.write_file_data(file,key)
 
 
         except Exception as e :
