@@ -18,6 +18,7 @@ from tkinter.filedialog import askopenfilename
 
 
 init()#allow colored text to run on windows machines
+
 class Help:
     def help_tier_2(self):
         print(colored("[6]","green") 
@@ -47,6 +48,15 @@ class Help:
         print(colored("[5]","green") 
             + " entry-Allows you to make a information entry on a profile")
         self.help_tier_2()
+
+"""
+
+ResultWindow Displays a G.U.I for
+the requested profile by the client
+, and handles functionality for the
+widgets.
+
+"""
 
 class ResultWindow:
 
@@ -151,10 +161,18 @@ class ResultWindow:
         tkinter.Message(child,text = data , font=("Courier", 20), fg = "#d3d3d3",bg = "#222").pack()
         child.mainloop()
 
-class ResponseChecker:
-    # Request routing
 
-    def display_profile(self,response):
+
+"""
+ResponseChecker checks the response 
+from client's request to server and
+updates the user interface based on
+the response
+
+"""
+class ResponseChecker:
+    @staticmethod
+    def display_profile(response):
         new_dict = json.loads(response)
         master = tkinter.Tk()
         result_window = ResultWindow(master,new_dict)
@@ -167,7 +185,6 @@ class ResponseChecker:
                 client.send("GOT".encode("ascii"))
                 data = client.recv(data_size).decode("ascii")
                 self.display_profile(data)
-                
         else:
             print("Profile Does not exist!!")
 
@@ -284,12 +301,6 @@ class Client:
         else:
             print(colored("Aborted Deletion!"))
 
-
-    def display_profile(self,response):
-        new_dict = json.loads(response)
-        master = tkinter.Tk()
-        result_window = ResultWindow(master,new_dict)
-        master.mainloop()
 
     def view_profile(self):
         first_name = input("First Name:")

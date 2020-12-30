@@ -33,7 +33,8 @@ class EmailHandler:
                 smtp.login(data["sender"],self.temp_email_password)
                 smtp.send_message(msg)
                 client.send("EMAIL_SENT".encode("ascii"))              
-            except :
+            except Exception as e :
+                print(e)
                 client.send("ISSUE".encode("ascii"))
                 
 
