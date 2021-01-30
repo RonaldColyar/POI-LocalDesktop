@@ -542,7 +542,7 @@ class Client:
            
 
     def display_welcome_message(self):
-            path = 'C:/Users/ronald/Git/Git Repos/POI/AsciiArt/Builder.txt'
+            path = 'C:/Users/ronald/Git/Git Repos/POI-LocalDesktop/AsciiArt/Builder.txt'
             with open( path, "r") as file: #ascii art
                 for i in file.readlines():
                     print(i)
