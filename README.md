@@ -25,3 +25,7 @@ This system was inspired by the tv show Persons of interest!
 # OPEN FOR CONTRIBUTION
 
 Anyone can contribute to this program!
+
+
+# Command Line Interface:
+![alt text](https://github.com/RonaldColyar/POI-LocalDesktop/blob/master/LocalPoi/CommandLineSample.png)
