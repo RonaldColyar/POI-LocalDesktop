@@ -29,3 +29,10 @@ Anyone can contribute to this program!
 
 # Command Line Interface:
 ![alt text](https://github.com/RonaldColyar/POI-LocalDesktop/blob/master/LocalPoi/CommandLineSample.png)
+
+
+# how to run locally:
+
+1. You will need to have a basic MongoDB service locally(Hosted at the address specified in the code).
+2. run Server.py!
+3. run Client.py!
