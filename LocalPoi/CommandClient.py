@@ -261,12 +261,9 @@ class Client:
             self.client.connect(('127.0.0.1',50222))
         except:
             self.running = False
-            #notifying the server we are disconnecting!
-            diconnect_message = {"type":"DISCONNECT_"}
-            self.client.send(json.dumps(diconnect_message).encode("ascii")) 
-            #update user
+            print(" ")
             print("Issue Connecting to Your Local Server!!")
-            print("Enter to Exit!")
+            print("Could mean that the server isn't running!!")
 
 
     #profiles
@@ -563,8 +560,8 @@ class Client:
             return encoded_image
 
     def Start(self):
-        self.display_welcome_message()
         while self.running == True:
+                self.display_welcome_message()
                 print(" ")
                 print(colored("#Persons Of Interest~","green") + "Version 1.0" )
                 command = input(">")
